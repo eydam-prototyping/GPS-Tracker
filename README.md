@@ -21,7 +21,7 @@ This project involves developing a GPS tracker using a Raspberry Pi Pico (RP2040
 4. **Track State**: Active data retrieval and transmission to AWS.
 5. **Error State**: Error detection and handling.
 
-![image](docs\img\GPS-Tracker_State-Diagram.drawio.png)
+![image](docs/img/GPS-Tracker_State-Diagram.drawio.png)
 
 ## Error Handling Best Practices
 - Clear identification and logging of errors.
