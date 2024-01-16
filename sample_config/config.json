@@ -1,0 +1,34 @@
+{
+    "modem": {
+        "type": "SIMCOM_SIM7080",
+        "baudrate": 9600,
+        "uart_interface": 0,
+        "tx_pin": 0,
+        "rx_pin": 1,
+        "power_pin": 14
+    },
+    "time": {
+        "ntp_server": "0.de.pool.ntp.org",
+        "timezone_offset": 1
+    },
+    "tracking": {
+        "camping_interval": 3600,
+        "moving_interval": 60
+    },
+    "aws_config": {
+        "smconf": [
+            "URL,<endpoint-id>-ats.iot.<aws-region>.amazonaws.com,8883",
+            "KEEPTIME,600",
+            "CLIENTID,<client-id>"
+        ],
+        "csslcfg": [
+            "SSLVERSION,0,3",
+            "CONVERT,2,ca.crt",
+            "CONVERT,1,client.crt,client.key"
+        ],
+        "smssl": [
+            "1,ca.crt,client.crt"
+        ],
+        "mqtt_update_topic": "$aws/things/<client-id>/shadow/name/Default/update"
+    }
+}
