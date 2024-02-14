@@ -59,10 +59,21 @@ class SIM7080g:
         self.at_adap.run()
             
     def setup_LTE(self):
+        """ Setup LTE connection
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+
+        # Set modem functionality to minimum
         at_cfun1 = ATadapter.AT_command("+CFUN", ATadapter.AT_CMD_TYPE_WRITE, "0")
+        # Set network mode to LTE only
         at_cnmp = ATadapter.AT_command("+CNMP", ATadapter.AT_CMD_TYPE_WRITE, "38")
+        # Set modem functionality to full
         at_cfun2 = ATadapter.AT_command("+CFUN", ATadapter.AT_CMD_TYPE_WRITE, "1")
+        # Set NB-IOT/CAT-M1 mode to CAT-M1
         at_cmnb = ATadapter.AT_command("+CMNB", ATadapter.AT_CMD_TYPE_WRITE, "1", _afterrun=5000)
+
         self.at_adap.queue_command(at_cfun1)
         self.at_adap.queue_command(at_cnmp)
         self.at_adap.queue_command(at_cfun2)
@@ -71,15 +82,22 @@ class SIM7080g:
         return at_cnmp.state == ATadapter.AT_CMD_STATE_FINISHED
     
     def setup_pdp_context(self):
+        # Get APN from network
         at_apn1 = ATadapter.AT_command("+CGNAPN", ATadapter.AT_CMD_TYPE_EXEC)
         self.at_adap.queue_command(at_apn1)
         self.at_adap.run()
         apn1 = at_apn1.res1[0].split(",")[1]
+
+        # if apn1 is empty, set to "tm"
         if apn1 == '""':
             apn1 = '"tm"'
         #at_cncfg = ATadapter.AT_command("+CNCFG", ATadapter.AT_CMD_TYPE_WRITE, "0,1," + apn1)
+        
+        # Set PDP context 0 to use IPv4
         at_cncfg = ATadapter.AT_command("+CNCFG", ATadapter.AT_CMD_TYPE_WRITE, "0,1")
+        # Set PDP context 0 to active 
         at_cnactw = ATadapter.AT_command("+CNACT", ATadapter.AT_CMD_TYPE_WRITE, "0,1", 3000, _afterrun=10000)
+        # Check if PDP context 0 is active
         at_cnactr = ATadapter.AT_command("+CNACT", ATadapter.AT_CMD_TYPE_READ)
         self.at_adap.queue_command(at_cncfg)
         self.at_adap.queue_command(at_cnactw)
@@ -89,6 +107,11 @@ class SIM7080g:
         return at_cnactr.state == ATadapter.AT_CMD_STATE_FINISHED
 
     def get_manufacturer(self):
+        """Get manufacturer of the modem via AT CGMI command
+
+        Returns:
+            str: manufacturer name or -1 if failed
+        """
         cmd = ATadapter.AT_command("+CGMI", ATadapter.AT_CMD_TYPE_EXEC)
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
@@ -96,6 +119,11 @@ class SIM7080g:
         return cmd.res2[-1] if cmd.state==ATadapter.AT_CMD_STATE_FINISHED else -1
     
     def get_model(self):
+        """Get model of the modem via AT CGMM command
+        
+        Returns:
+            str: model name or -1 if failed
+        """
         cmd = ATadapter.AT_command("+CGMM", ATadapter.AT_CMD_TYPE_EXEC)
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
@@ -103,6 +131,11 @@ class SIM7080g:
         return cmd.res2[-1] if cmd.state==ATadapter.AT_CMD_STATE_FINISHED else -1
     
     def get_revision(self):
+        """Get revision of the modem via AT CGMR command
+
+        Returns:
+            str: revision or -1 if failed
+        """
         cmd = ATadapter.AT_command("+CGMR", ATadapter.AT_CMD_TYPE_EXEC)
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
@@ -110,6 +143,11 @@ class SIM7080g:
         return cmd.res2[-1] if cmd.state==ATadapter.AT_CMD_STATE_FINISHED else -1
     
     def get_imsi(self):
+        """Get IMSI of the SIM card via AT CIMI command
+
+        Returns:
+            str: IMSI or -1 if failed
+        """
         cmd = ATadapter.AT_command("+CIMI", ATadapter.AT_CMD_TYPE_EXEC)
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
@@ -117,6 +155,11 @@ class SIM7080g:
         return cmd.res2[-1] if cmd.state==ATadapter.AT_CMD_STATE_FINISHED else -1
     
     def get_imei(self):
+        """Get IMEI of the modem via AT CGSN command
+
+        Returns:
+            str: IMEI or -1 if failed
+        """
         cmd = ATadapter.AT_command("+GSN", ATadapter.AT_CMD_TYPE_EXEC)
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
@@ -124,6 +167,17 @@ class SIM7080g:
         return cmd.res2[-1] if cmd.state==ATadapter.AT_CMD_STATE_FINISHED else -1
     
     def get_ip_addresses(self):
+        """Get IP addresses of the modem via AT CGPADDR command
+        
+        Example:
+            [
+                {"id":"0", "state":"1", "ip":"x.x.x.x"}, 
+                {"id":"1", "state":"0", "ip":"y.y.y.y"}
+            ]
+
+        Returns:
+            list of dict: IP addresses and their states or -1 if failed
+        """
         cmd = ATadapter.AT_command("+CNACT", ATadapter.AT_CMD_TYPE_READ)
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
@@ -137,9 +191,22 @@ class SIM7080g:
         else:
             return -1
         
-    def sync_NTP_time(self, ntp_server, tz_offset):
+    def sync_NTP_time(self, ntp_server: str, tz_offset: int):
+        """Sync time with NTP server
+
+        Args:
+            ntp_server (str): NTP server url
+            tz_offset (int): Timezone offset in hours (e.g. +2 or -3)
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+
+        # Set NTP server and timezone offset
         cmd1 = ATadapter.AT_command("+CNTP", ATadapter.AT_CMD_TYPE_WRITE, ntp_server + "," + str(4*tz_offset))
+        # Sync time
         cmd2 = ATadapter.AT_command("+CNTP", ATadapter.AT_CMD_TYPE_EXEC, _afterrun=3000)
+        # Get current time
         cclk = ATadapter.AT_command("+CCLK", ATadapter.AT_CMD_TYPE_READ)
         self.at_adap.queue_command(cmd1)
         self.at_adap.queue_command(cmd2)
@@ -150,6 +217,7 @@ class SIM7080g:
         self.logger.debug(cmd2)
         self.logger.debug(cclk)
 
+        # Check if time sync was successful
         cntp_res_code = cmd2.res1[0].split(",")
         if cntp_res_code == "61": self.logger.warning("Time sync failed: Network Error")
         elif cntp_res_code == "62": self.logger.warning("Time sync failed: DNS resolution error")
@@ -167,31 +235,76 @@ class SIM7080g:
         self.logger.warning("Failed to set Time")
         return False
     
-    def setup_aws_context(self, smconf_params, csslcfg_params, smssl_params):
+    def setup_aws_context(self, smconf_params: list, csslcfg_params: list, smssl_params: list):
+        """Setup AWS context
+
+        Args:
+            smconf_params (list): AWS context parameters (see example config file)
+            csslcfg_params (list): SSL/TLS configuration parameters (see example config file)
+            smssl_params (list): MQTT connection parameters (see example config file)
+        """
+
+        # Set AWS context parameters
         for param in smconf_params:
             self.at_adap.queue_command(ATadapter.AT_command("+SMCONF", ATadapter.AT_CMD_TYPE_WRITE, param))
-
+        
+        # Set SSL/TLS configuration parameters
         for param in csslcfg_params:
             self.at_adap.queue_command(ATadapter.AT_command("+CSSLCFG", ATadapter.AT_CMD_TYPE_WRITE, param))
-
+        
+        # Set MQTT connection parameters
         for param in smssl_params:
             self.at_adap.queue_command(ATadapter.AT_command("+SMSSL", ATadapter.AT_CMD_TYPE_WRITE, param))
         
         self.at_adap.run()
 
+
     def connect_to_AWS(self):
+        """Connect to AWS IoT Core via MQTT
+        """
         smconn = ATadapter.AT_command("+SMCONN", ATadapter.AT_CMD_TYPE_EXEC, _timeout=20000)
 
         self.at_adap.queue_command(smconn)
         self.at_adap.run()
 
     def disconnect_from_AWS(self):
+        """Disconnect from AWS IoT Core
+        """
         smdisc = ATadapter.AT_command("+SMDISC", ATadapter.AT_CMD_TYPE_EXEC)
 
         self.at_adap.queue_command(smdisc)
         self.at_adap.run()
 
     def get_network_info(self):
+        """Get network information
+        Example:
+            {
+                "System Mode": "LTE",
+                "Operation Mode": "Online",
+                "MCC-MNC": "28602",
+                "TAC": "0001",
+                "SCellID": 0,
+                "eNBID": 0,
+                "SectorID": 0,
+                "PCellID": 0,
+                "Frequency Band": "B3",
+                "earfcn": 1400,
+                "dlbw": 15,
+                "ulbw": 15,
+                "RSRQ": -10,
+                "RSRP": -80,
+                "RSSI": -60,
+                "RSSNR": 10,
+                "Service Domain Preference": "PS Only",
+                "APN": "tm",
+                "Basestation Longitude": "x.xxxxxx",
+                "Basestation Latitude": "y.yyyyyy",
+                "Basestation Accuracy": "z.zzzz"
+            }
+
+        Returns:
+            dict: network information
+        """
         at_cpsi = ATadapter.AT_command("+CPSI", ATadapter.AT_CMD_TYPE_READ)
         at_csdp = ATadapter.AT_command("+CSDP", ATadapter.AT_CMD_TYPE_READ)
         at_cgnapn = ATadapter.AT_command("+CGNAPN", ATadapter.AT_CMD_TYPE_READ)
@@ -249,21 +362,41 @@ class SIM7080g:
         return network_info
     
     def send_mqtt(self, topic:str, content:str, qos:int=0, retain:int=0):
+        """Send MQTT message to AWS IoT Core
+
+        Args:
+            topic (str): topic
+            content (str): payload (json string)
+            qos (int, optional): Quality of Service, 0, 1 or 2. 0: at most once, 1: at least once, 2: exactly once. Defaults to 0.
+            retain (int, optional): Retain flag, 0 or 1. 0: message is not retained, 1: message is retained. Defaults to 0.
+        """
         at_smpub = ATadapter.AT_command(f"+SMPUB", ATadapter.AT_CMD_TYPE_WRITE, f'"{topic}",{len(content)},{qos},{retain}', data=content)
         self.at_adap.queue_command(at_smpub)
         self.at_adap.run()
 
     def turn_on_GNSS(self):
+        """Turn on GNSS module
+        """
         cmd = ATadapter.AT_command(f"+CGNSPWR", ATadapter.AT_CMD_TYPE_WRITE, "1")
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
 
     def turn_off_GNSS(self):
+        """Turn off GNSS module
+        """
         cmd = ATadapter.AT_command(f"+CGNSPWR", ATadapter.AT_CMD_TYPE_WRITE, "0")
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
 
     def get_GNSS_position(self):
+        """Get GNSS position
+        NOT TESTED
+        """
         cmd = ATadapter.AT_command(f"+CGNSINF", ATadapter.AT_CMD_TYPE_EXEC)
         self.at_adap.queue_command(cmd)
         self.at_adap.run()
+
+        if cmd.state == ATadapter.AT_CMD_STATE_FINISHED:
+            return cmd.res1[0].split(",")
+        else:
+            return -1

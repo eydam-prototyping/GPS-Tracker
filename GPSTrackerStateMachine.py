@@ -5,16 +5,23 @@ import json
 
 class GPSTrackerStateMachine:
     def __init__(self):
-        # Initialize the current state to None
+        """Initializes the state machine with a null state and a logger.
+        """
         self.current_state = None
         self.logger = Logger("GPSTrackerStateMachine")
-
+    
     def boot(self):
-        try:
-            # Boot state logic
-            # Perform necessary initializations and checks
-            # Log successful boot
-            
+        """Boot state logic
+
+        Actions:
+        - Initialize the modem
+
+        Transitions:
+        - Transition to configuration state if successful
+        - Transition to error state if unsuccessful
+
+        """
+        try:            
             self.logger.info("Initializing Modem...")
             self.modem = SIM7080g(0, 9600, 1, 0, 14)
             if not self.modem.flg_uart_initialized: self.transition("error")
@@ -27,6 +34,19 @@ class GPSTrackerStateMachine:
             self.transition('error')
 
     def configuration(self):
+        """Configuration state logic
+
+        Actions:
+        - Load configuration from config.json
+        - Connect to LTE network
+        - Setup PDP context
+        - Sync time
+        - Setup AWS context
+
+        Transitions:
+        - Transition to Idle state if successful
+        - Transition to Error state if unsuccessful
+        """
         try:
             self.logger.info("Loading config...")
             try:
@@ -78,6 +98,15 @@ class GPSTrackerStateMachine:
             self.transition('error')
 
     def idle(self):
+        """Idle state logic
+
+        Actions:
+        - Sleep for camping interval
+        
+        Transitions:
+        - Transition to track state
+        - Transition to error state if unsuccessful
+        """
         try:
             self.logger.debug(self.modem.at_adap._unsolicited_responses)
             utime.sleep(self.config["tracking"]["camping_interval"])
@@ -87,6 +116,21 @@ class GPSTrackerStateMachine:
             self.transition('error')
 
     def track(self):
+        """Track state logic
+
+        Actions:
+        - Turn on GNSS
+        - Get GNSS position
+        - Turn off GNSS
+        - Connect to AWS
+        - Get network info
+        - Send MQTT update
+        - Disconnect
+
+        Transitions:
+        - Transition to idle state
+        - Transition to error state if unsuccessful
+        """
         try:
             self.modem.turn_on_GNSS()
             self.modem.get_GNSS_position()
@@ -108,11 +152,18 @@ class GPSTrackerStateMachine:
             self.transition('error')
 
     def error(self):
-        # Error state logic
-        # Handle errors and take appropriate actions
-        pass  # Placeholder for error handling logic
-
+        """Error state logic
+        Actions:
+        - Handle errors and take appropriate actions
+        """
+        self.logger.error("Error state. Exiting.")
+        
     def transition(self, new_state):
+        """Transition to a new state
+
+        Args:
+            new_state (str): The new state to transition to ('boot', 'configuration', 'idle', 'track', 'error')
+        """
         try:
             self.logger.info(f"Transitioning from {self.current_state} to {new_state}")
             self.current_state = new_state
@@ -120,7 +171,8 @@ class GPSTrackerStateMachine:
             self.logger.error(f"Error during state transition: {e}")
 
     def run(self):
-        # Main loop for the state machine
+        """Main loop of the state machine. Runs the state machine until an error occurs or the program is terminated.
+        """
         while True:
             if self.current_state == 'boot':
                 self.boot()
