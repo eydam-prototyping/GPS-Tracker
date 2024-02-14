@@ -118,9 +118,11 @@ class Adapter:
             cmd (AT_command): The AT command to be executed
         """
         
+        # if command is not scheduled, return (eg. already executed or failed)
         if cmd.state != AT_CMD_STATE_SCHEDULED:
             return
         
+        # Build the AT command string
         c = "AT"+cmd.cmd
 
         if cmd.typ == AT_CMD_TYPE_TEST:
@@ -135,28 +137,45 @@ class Adapter:
         if cmd.typ == AT_CMD_TYPE_EXEC:
             pass
 
+        # Send the AT command to the modem (via UART)
         self._uart.write((c+"\r\n").encode("ascii"))
         cmd.state = AT_CMD_STATE_RUNNING
         self.logger.debug(">> " + c)
         t0 = utime.ticks_ms()
         t1 = 0
+        
+        # while state is running or running_wait and timeout or afterrun has not been reached
         while \
             ((utime.ticks_ms()-t0 < cmd.timeout) & (cmd.state == AT_CMD_STATE_RUNNING)) |  \
             ((utime.ticks_ms()-t1 < cmd.afterrun) & (cmd.state == AT_CMD_STATE_RUNNING_WAIT)) :
+
+            # calculate timeout for poll
             if cmd.state == AT_CMD_STATE_RUNNING:
                 poll_timeout = cmd.timeout-(utime.ticks_ms()-t0)
+            
+            # calculate timeout for afterrun
             elif cmd.state == AT_CMD_STATE_RUNNING_WAIT:
                 poll_timeout = cmd.afterrun-(utime.ticks_ms()-t1)
+            
+            # read from uart
             events = self._poll.poll(poll_timeout)
-            for event in events:
-                
+            
+            # process uart inputs
+            for event in events:    
+                # format and split uart input
                 lines = [line.strip() for line in event[0].read().decode().split("\n") if line.strip()!=""]
                 for line in lines:
                     self.logger.debug("<< " + line)
+
+                    # skip, if line is the command itself
                     if line == c:
                         pass
+
+                    # typical responses (starts with command)
                     elif (cmd.cmd!="") & line.startswith(cmd.cmd):
                         cmd.res1.append(line[len(cmd.cmd)+2:])
+                    
+                    # if line is "OK", set state to finished or running_wait (for afterrun)
                     elif line in ["OK"]:
                         if cmd.afterrun > 0:
                             cmd.state = AT_CMD_STATE_RUNNING_WAIT
@@ -164,16 +183,23 @@ class Adapter:
                         else:
                             cmd.state = AT_CMD_STATE_FINISHED
                         self.logger.debug(cmd)
+                    
+                    # if line is \x00, set state to finished_00
                     elif line in ["\x00"]:
                         cmd.state = AT_CMD_STATE_FINISHED_00
                         self.logger.debug(cmd)
+
+                    # if line is "ERROR", set state to failed
                     elif line == "ERROR":
                         cmd.state = AT_CMD_STATE_FAILED
                         self.logger.debug(cmd)
+                    
+                    # if line is "DOWNLOAD" or ">", send data
                     elif line in ["DOWNLOAD",">"]:
                         for i in range(len(cmd.data)//100+1):
                             self._uart.write(cmd.data[100*i:100*(i+1)])
                             utime.sleep(0.1)
+                    
                     else: 
                         self.logger.debug("++ " + line)
                         if any([line.startswith(x) for x in unsolicited_responses]):
