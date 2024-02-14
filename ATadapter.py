@@ -55,6 +55,17 @@ class AT_command:
     state = 0
 
     def __init__(self, _cmd:str, _type:int, _param:str=None, _timeout:int=1000, _afterrun:int=0, data:str=""):
+        """Initializes the AT_command object
+
+        Args:
+            _cmd (str): AT command string
+            _type (int): AT_CMD_TYPE_TEST, AT_CMD_TYPE_READ, AT_CMD_TYPE_WRITE, AT_CMD_TYPE_EXEC
+            _param (str, optional): parameter for write commands. Defaults to None.
+            _timeout (int, optional): timeout in ms. Defaults to 1000.
+            _afterrun (int, optional): time to wait after command has finished. Defaults to 0.
+            data (str, optional): data to be sent after command (for download or payload). Defaults to "".
+        """
+        
         self.cmd = _cmd
         self.typ = _type
         self.param = _param
@@ -74,20 +85,39 @@ class Adapter:
     _unsolicited_responses = []
 
     def __init__(self, uart):
+        """Initializes the ATAdapter
+
+        Args:
+            uart: machine.UART object
+        """
         self._uart = uart
         self._poll = select.poll()
         self._poll.register(uart, select.POLLIN)
         self.logger = Logger("ATAdapter")
 
     def queue_command(self, command:AT_command):
+        """Queues an AT command for execution
+
+        Args:
+            command (AT_command): AT command object that will be queued for execution
+        """
+        
         self._command_queue.append(command)
         command.state = AT_CMD_STATE_SCHEDULED
 
     def run(self):
+        """Executes all queued AT commands in the order they were queued
+        """
         for cmd in self._command_queue:
             self._execute_command(cmd)
 
     def _execute_command(self, cmd: AT_command):
+        """Executes a single AT command
+
+        Args:
+            cmd (AT_command): The AT command to be executed
+        """
+        
         if cmd.state != AT_CMD_STATE_SCHEDULED:
             return
         
@@ -159,5 +189,7 @@ class Adapter:
         self.logger.info(cmd)
 
     def print_command_queue(self):
+        """Prints the command queue
+        """
         for cmd in self._command_queue:
-            print(cmd)
+            self.logger.info(cmd)
