@@ -79,6 +79,7 @@ class GPSTrackerStateMachine:
 
     def idle(self):
         try:
+            self.logger.debug(self.modem.at_adap._unsolicited_responses)
             utime.sleep(self.config["tracking"]["camping_interval"])
             self.transition('track')
         except Exception as e:
@@ -87,6 +88,9 @@ class GPSTrackerStateMachine:
 
     def track(self):
         try:
+            self.modem.turn_on_GNSS()
+            self.modem.get_GNSS_position()
+            self.modem.turn_off_GNSS()
             self.modem.connect_to_AWS()
             network_info = self.modem.get_network_info()
             self.modem.send_mqtt(self.config["aws_config"]["mqtt_update_topic"], 

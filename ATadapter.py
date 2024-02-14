@@ -16,16 +16,42 @@ AT_CMD_TYPE_READ = 1
 AT_CMD_TYPE_WRITE = 2
 AT_CMD_TYPE_EXEC = 3
 
+unsolicited_responses = [
+    "+CRING:",
+    "+CREG:",
+    "+CMTI:",
+    "+CMT:",
+    "+CBM:",
+    "+CDS:",
+    "*PSNWID:",
+    "*PSUTTZ:",
+    "+CTZV:",
+    "DST:",
+    "+CPIN:",
+    "NORMAL POWER DOWN",
+    "UNDER-VOLTAGE POWER DOWN",
+    "UNDER-VOLTAGE WARNNING",
+    "OVER-VOLTAGE POWER DOWN",
+    "OVER-VOLTAGE WARNNING",
+    "RDY",
+    "+CFUN:",
+    "CONNECT",
+    "CONNECT OK",
+    "CONNECT FAIL",
+    "ALREADY CONNECT",
+    "SEND OK",
+    "CLOSED",
+    "RECV FROM:",
+    "+IPD,",
+    "+RECEIVE,",
+    "REMOTE IP:",
+    "+CDNSGIP:",
+    "+PDP:",
+    "+APP PDP:"
+]
+
+
 class AT_command:
-    
-    # 0  = init
-    # 1  = queued
-    # 2  = running
-    # 3  = finished (OK)
-    # 4  = failed (ERROR)
-    # 5  = timeout
-    # 6  = finisehd ([00])
-    # 21 = waiting for afterrun
     state = 0
 
     def __init__(self, _cmd:str, _type:int, _param:str=None, _timeout:int=1000, _afterrun:int=0, data:str=""):
@@ -120,12 +146,17 @@ class Adapter:
                             utime.sleep(0.1)
                     else: 
                         self.logger.debug("++ " + line)
-                        cmd.res2.append(line)
+                        if any([line.startswith(x) for x in unsolicited_responses]):
+                            self._unsolicited_responses.append(line)
+                        else:
+                            cmd.res2.append(line)
                         
         if cmd.state == AT_CMD_STATE_RUNNING:
             cmd.state = AT_CMD_STATE_TIMEOUT
         elif cmd.state == AT_CMD_STATE_RUNNING_WAIT:
             cmd.state = AT_CMD_STATE_FINISHED
+
+        self.logger.info(cmd)
 
     def print_command_queue(self):
         for cmd in self._command_queue:
